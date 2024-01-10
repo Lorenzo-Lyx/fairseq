@@ -29,8 +29,11 @@ class StrEnum(Enum, metaclass=StrEnumMeta):
         return hash(str(self))
 
 
+
+"""
+@Desc: return the Enum class used to enforce list of choices
+"""
 def ChoiceEnum(choices: List[str]):
-    """return the Enum class used to enforce list of choices"""
     return StrEnum("Choices", {k: k for k in choices})
 
 

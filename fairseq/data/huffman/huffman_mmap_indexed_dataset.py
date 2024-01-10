@@ -1,7 +1,6 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
+#@User: unread...
+
+
 
 import mmap
 import os
@@ -9,21 +8,20 @@ import shutil
 import struct
 import typing as tp
 from functools import lru_cache
-
 import numpy as np
 import torch
+
 from fairseq.data import indexed_dataset
 from fairseq.data.huffman import HuffmanCoder
 from fairseq.file_io import PathManager
 
 
-class HuffmanMMapIndex:
-    """
-    keep an index of the offsets in the huffman binary file.
-    First a header, then the list of sizes (num tokens) for each instance and finally
-    the addresses of each instance.
-    """
 
+"""
+@Desc:  keep an index of the offsets in the huffman binary file.
+        First a header, then the list of sizes (num tokens) for each instance and finally the addresses of each instance.
+"""
+class HuffmanMMapIndex:
     _HDR_MAGIC = b"HUFFIDX\x00\x00"
     _VERSION = 1
 

@@ -1,8 +1,6 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
+#@Desc: The `ast` module helps Python applications to process trees of the Python abstract syntax grammar.  
+#       The abstract syntax itself might change with each Python release; 
+#       this module helps to find out programmatically what the current grammar looks like and allows modifications of it.
 import ast
 import inspect
 import logging
@@ -15,13 +13,22 @@ from typing import Any, Dict, List, Optional, Tuple, Type
 
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.configs import FairseqConfig
+#@Question: What's hydra.core.global_hydra and hydra.experimental?
 from hydra.core.global_hydra import GlobalHydra
 from hydra.experimental import compose, initialize
+#@Question: What's omegaconf?
 from omegaconf import DictConfig, OmegaConf, open_dict, _utils
 
 logger = logging.getLogger(__name__)
 
 
+"""
+@Desc: 将使用字符串表示的数据cast为@Type{@Param{x_type}}的Python数据
+@Example: 
+    x = '1.2, 3.2, 4.32, 5.60'
+    y = eval_str_list(x)
+    @Now: y = [1.2, 3.2, 4.32, 5.6]
+"""
 def eval_str_list(x, x_type=float):
     if x is None:
         return None
@@ -35,6 +42,22 @@ def eval_str_list(x, x_type=float):
         return [x_type(x)]
 
 
+
+"""
+@Desc:  解释Dataclass中Field的类型。
+        能够将可选类型(Optional 或者 Union[Type, NoneType])的Field转换为实际类型, 以便后续使用
+@Param{field_type}: Dataclass中Field的类型
+@Example:
+    interpret_dc_type(int)      =>  <class 'int'>
+    @Code{
+        from dataclasses import dataclass
+        @dataclass
+        class Point:
+            x: int
+            y: int
+    }
+    interpret_dc_type(Point)    =>  <class '__main__.Point'>
+"""
 def interpret_dc_type(field_type):
     if isinstance(field_type, str):
         raise RuntimeError("field should be a type")
@@ -50,19 +73,23 @@ def interpret_dc_type(field_type):
     return field_type
 
 
+
+"""
+@Desc:  convert a @Class{FairseqDataclass} instance to tailing parser arguments.
+        It means that we are building a flat namespace from a structured dataclass
+        也就是说, @Instance{FairseqDataclass}的field可以是其他@Instance{FairseqDataclass}
+        转换后的@Return{parser}将不再有这样的结构性, 会包含所有的fields信息
+        (see transformer_config.py for example).
+@Param{delete_default}: 是否直接删除field中的default key, 参见@Desc{get_kwargs_from_dc}
+@Param{with_prefix}: If @Param{with_prefix} is provided, prefix all the keys in the resulting parser with it. 
+"""
 def gen_parser_from_dataclass(
     parser: ArgumentParser,
     dataclass_instance: FairseqDataclass,
     delete_default: bool = False,
     with_prefix: Optional[str] = None,
 ) -> None:
-    """
-    convert a dataclass instance to tailing parser arguments.
-
-    If `with_prefix` is provided, prefix all the keys in the resulting parser with it. It means that we are
-    building a flat namespace from a structured dataclass (see transformer_config.py for example).
-    """
-
+    #@Desc: 转换一个@Str{name}, 会考虑@Param{with_prefix}
     def argparse_name(name: str):
         if name == "data" and (with_prefix is None or with_prefix == ""):
             # normally data is positional args, so we don't add the -- nor the prefix
@@ -73,21 +100,32 @@ def gen_parser_from_dataclass(
         full_name = "--" + name.replace("_", "-")
         if with_prefix is not None and with_prefix != "":
             # if a prefix is specified, construct the prefixed arg name
-            full_name = with_prefix + "-" + full_name[2:]  # strip -- when composing
+            full_name = with_prefix + "-" + full_name[2:]  #@Explain: strip -- when composing
         return full_name
 
+    #@Desc: 将@Class{BaseDataclass}的instance中的一个Field转化为一个@Dict
+    #@Param{k}: dataclass attributes
+    #@Return:@Dict{ 'required'? : ,
+    #               'choices'?  : ,
+    #               'type'?     : @Func,
+    #               'default'?  : ,
+    #               'action'?   : ,
+    #               'help'      :@Str,
+    #               'const'?    : ,
+    #               'nargs'     :   }
     def get_kwargs_from_dc(
         dataclass_instance: FairseqDataclass, k: str
     ) -> Dict[str, Any]:
         """k: dataclass attributes"""
 
         kwargs = {}
-
+        #@Explain: 获取@Param{k}对应的field的相关信息
         field_type = dataclass_instance._get_type(k)
         inter_type = interpret_dc_type(field_type)
 
         field_default = dataclass_instance._get_default(k)
 
+        #@Explain: 根据field的相关信息构建@Dict{kwargs}
         if isinstance(inter_type, type) and issubclass(inter_type, Enum):
             field_choices = [t.value for t in list(inter_type)]
         else:
@@ -158,13 +196,14 @@ def gen_parser_from_dataclass(
         field_type = dataclass_instance._get_type(k)
         if field_name is None:
             continue
+        #@Explain:  for fields that are of @Type{BaseDataclass}, we can recursively
+        #           add their fields to the namespace
+        #           (so we add the args from model, task, etc. to the root namespace)
         elif inspect.isclass(field_type) and issubclass(field_type, FairseqDataclass):
-            # for fields that are of type FairseqDataclass, we can recursively
-            # add their fields to the namespace (so we add the args from model, task, etc. to the root namespace)
             prefix = None
+            #@Explain:  if a prefix is specified, then we don't want to copy the subfields directly to the root namespace
+            #           but we prefix them with the name of the current field.
             if with_prefix is not None:
-                # if a prefix is specified, then we don't want to copy the subfields directly to the root namespace
-                # but we prefix them with the name of the current field.
                 prefix = field_name
             gen_parser_from_dataclass(parser, field_type(), delete_default, prefix)
             continue
@@ -180,8 +219,8 @@ def gen_parser_from_dataclass(
             if isinstance(kwargs["default"], str) and kwargs["default"].startswith(
                 "${"
             ):
+                #@Explain: this is a field with a name that will be added elsewhere
                 if kwargs["help"] is None:
-                    # this is a field with a name that will be added elsewhere
                     continue
                 else:
                     del kwargs["default"]
@@ -193,8 +232,10 @@ def gen_parser_from_dataclass(
             pass
 
 
+"""
+@Desc: Helper to set default arguments based on *add_args*.
+"""
 def _set_legacy_defaults(args, cls):
-    """Helper to set default arguments based on *add_args*."""
     if not hasattr(cls, "add_args"):
         return
 

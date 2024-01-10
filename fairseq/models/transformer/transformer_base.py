@@ -25,40 +25,34 @@ from fairseq.models.transformer import (
 logger = logging.getLogger(__name__)
 
 
+
+"""
+@Desc:  Transformer model from @Paper, The Transformer model provides 
+        the following named architectures and command-line arguments:
+        argparse::
+            ref: stos.models.transformer_parser
+            prog:
+@Paper: <Attention is All You Need>(Vaswani, et al, 2017), <https://arxiv.org/abs/1706.03762>`_.
+@Param{encoder}: @Type{TransformerEncoder}, the encoder
+@Param{decoder}: @Type{TransformerDecoder}, the decoder
+"""
 class TransformerModelBase(FairseqEncoderDecoderModel):
-    """
-    Transformer model from `"Attention Is All You Need" (Vaswani, et al, 2017)
-    <https://arxiv.org/abs/1706.03762>`_.
-
-    Args:
-        encoder (TransformerEncoder): the encoder
-        decoder (TransformerDecoder): the decoder
-
-    The Transformer model provides the following named architectures and
-    command-line arguments:
-
-    .. argparse::
-        :ref: fairseq.models.transformer_parser
-        :prog:
-    """
-
     def __init__(self, cfg, encoder, decoder):
         super().__init__(encoder, decoder)
         self.cfg = cfg
         self.supports_align_args = True
 
+    #@Desc: Add model-specific arguments to the parser. 
     @classmethod
     def add_args(cls, parser):
-        """Add model-specific arguments to the parser."""
         # we want to build the args recursively in this case.
         gen_parser_from_dataclass(
             parser, TransformerConfig(), delete_default=False, with_prefix=""
         )
 
+    #@Desc: Build a new model instance. 
     @classmethod
     def build_model(cls, cfg, task):
-        """Build a new model instance."""
-
         # --  TODO T96535332
         #  bug caused by interaction between OmegaConf II and argparsing
         cfg.decoder.input_dim = int(cfg.decoder.input_dim)
@@ -115,6 +109,7 @@ class TransformerModelBase(FairseqEncoderDecoderModel):
         decoder = cls.build_decoder(cfg, tgt_dict, decoder_embed_tokens)
         return cls(cfg, encoder, decoder)
 
+    #@Param{dictionary}: @Type{fairseq.data.Dictionary}
     @classmethod
     def build_embedding(cls, cfg, dictionary, embed_dim, path=None):
         num_embeddings = len(dictionary)

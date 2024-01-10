@@ -1,8 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-
 from typing import Dict, List, NamedTuple, Optional
 
 import torch
@@ -10,6 +5,8 @@ import torch.nn as nn
 from torch import Tensor
 
 
+
+#@Callback: @Type{NamedTuple}使得@Type{Tuple}的每个字段都有一个明确的名称
 EncoderOut = NamedTuple(
     "EncoderOut",
     [
@@ -23,29 +20,23 @@ EncoderOut = NamedTuple(
 )
 
 
-class FairseqEncoder(nn.Module):
-    """Base class for encoders."""
 
+"""
+@Desc: Base class for encoders.
+"""
+class FairseqEncoder(nn.Module):
     def __init__(self, dictionary):
         super().__init__()
         self.dictionary = dictionary
 
+    #@Param{src_tokens}: @Type{LongTensor}, tokens in the source language of @Shape{[batch, src_len]}
+    #@Param{src_lengths}: @Type{LongTensor}, lengths of each source sentence of @Shape{[batch]}
     def forward(self, src_tokens, src_lengths=None, **kwargs):
-        """
-        Args:
-            src_tokens (LongTensor): tokens in the source language of shape
-                `(batch, src_len)`
-            src_lengths (LongTensor): lengths of each source sentence of shape
-                `(batch)`
-        """
         raise NotImplementedError
 
+    #@Desc: A TorchScript-compatible version of forward.
+    #Encoders which use additional arguments may want to override this method for TorchScript compatibility.
     def forward_torchscript(self, net_input: Dict[str, Tensor]):
-        """A TorchScript-compatible version of forward.
-
-        Encoders which use additional arguments may want to override
-        this method for TorchScript compatibility.
-        """
         if torch.jit.is_scripting():
             return self.forward(
                 src_tokens=net_input["src_tokens"],
@@ -61,30 +52,24 @@ class FairseqEncoder(nn.Module):
         }
         return self.forward(**encoder_input)
 
+    #@Desc: Reorder encoder output according to @Param{new_order}.
+    #@Param{encoder_out}: output from the @Func{forward}.
+    #@Param{new_order}: @Type{LongTensor}, desired order.
+    #@Return: @Param{encoder_out} rearranged according to @Param{new_order}. 
     def reorder_encoder_out(self, encoder_out, new_order):
-        """
-        Reorder encoder output according to `new_order`.
-
-        Args:
-            encoder_out: output from the ``forward()`` method
-            new_order (LongTensor): desired order
-
-        Returns:
-            `encoder_out` rearranged according to `new_order`
-        """
         raise NotImplementedError
 
+    #@Desc: Maximum input length supported by the encoder.
     def max_positions(self):
-        """Maximum input length supported by the encoder."""
         return 1e6  # an arbitrary large number
 
+    #@Desc: Upgrade old state dicts to work with newer code.
     def upgrade_state_dict_named(self, state_dict, name):
-        """Upgrade old state dicts to work with newer code."""
         return state_dict
 
+    #@Desc: State from trainer to pass along to model at every update.
+    #@Question: 什么意思呢？
     def set_num_updates(self, num_updates):
-        """State from trainer to pass along to model at every update."""
-
         def _apply(m):
             if hasattr(m, "set_num_updates") and m != self:
                 m.set_num_updates(num_updates)

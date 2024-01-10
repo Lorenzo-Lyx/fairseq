@@ -1,12 +1,26 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
+"""
+@User: This file contains numerous meters, including meters for time statistics. 
+       The base class for these meters is BaseMeter. 
+       Additionally, an ordered meters dictionary has been implemented, which is not intended for reassignment, 
+       and its efficiency might be relatively low.
+"""
 
+
+
+"""
+@Question: What is @Pkg{bisect}?
+@Answer:   这是Python3的二分查找库;
+           @Func{insort}插入函数
+           @Func{bisect}(@Param{ls}(从小到大), @Param(x), hi, key) -> @Param{x}: 返回大于x的第一个索引
+           @Func{bisect_right}：与@Func{bisect}相同
+           @Func{bisect_left}: 返回大于等于x的第一个索引
+"""
 import bisect
 import time
 from collections import OrderedDict
 from typing import Dict, Optional
+
+
 
 try:
     import torch
@@ -24,16 +38,18 @@ except ImportError:
         return a
 
 
+
 try:
     import numpy as np
 except ImportError:
     np = None
 
 
-class Meter(object):
-    """Base class for Meters."""
 
+"""@Desc: Base class for Meters."""
+class BaseMeter(object):
     def __init__(self):
+        #@Callback: @Keyword{pass}是一个空语句，保持程序结构的完整性，不做任何事情，仅仅占位
         pass
 
     def state_dict(self):
@@ -45,12 +61,18 @@ class Meter(object):
     def reset(self):
         raise NotImplementedError
 
+    #@Desc: Smoothed value used for logging.
+    #@Callback{property}: 创建只读属性，将方法转换为相同名称的只读属性
+    #                     这也是设置私有属性的方法，通过_隐藏属性名，然后使用property修饰的方法创建只读属性
+    #                     用户在使用的时候无法随意修改
     @property
     def smoothed_value(self) -> float:
-        """Smoothed value used for logging."""
         raise NotImplementedError
 
 
+
+#@Desc: round the @Param{number} in @Param{ndigits} safely.
+#@Question: Why safe? 
 def safe_round(number, ndigits):
     if hasattr(number, "__round__"):
         return round(number, ndigits)
@@ -62,18 +84,22 @@ def safe_round(number, ndigits):
         return number
 
 
-class AverageMeter(Meter):
-    """Computes and stores the average and current value"""
-
+"""@Desc: Computes and stores the average and current value"""
+class AverageMeter(BaseMeter):
     def __init__(self, round: Optional[int] = None):
         self.round = round
         self.reset()
 
     def reset(self):
-        self.val = None  # most recent update
-        self.sum = 0  # sum from all updates
-        self.count = 0  # total n from all updates
+        #@Explain: The value most recent update.
+        self.val = None
+        #@Explain: The sum from all updates
+        self.sum = 0
+        #@Explain: total n from all updates
+        self.count = 0
 
+    #@Desc: update @Param{n} @Param{val}s
+    #@Param{n} may be @Type{float}.
     def update(self, val, n=1):
         if val is not None:
             self.val = val
@@ -99,6 +125,7 @@ class AverageMeter(Meter):
     def avg(self):
         return self.sum / self.count if self.count > 0 else self.val
 
+    #@Desc: 与@Func{avg}相比，增加了@Func{safe_round}操作
     @property
     def smoothed_value(self) -> float:
         val = self.avg
@@ -107,9 +134,9 @@ class AverageMeter(Meter):
         return val
 
 
-class SumMeter(Meter):
-    """Computes and stores the sum"""
 
+"""@Desc: Computes and stores the sum"""
+class SumMeter(BaseMeter):
     def __init__(self, round: Optional[int] = None):
         self.round = round
         self.reset()
@@ -139,9 +166,9 @@ class SumMeter(Meter):
         return val
 
 
-class ConcatTensorMeter(Meter):
-    """Concatenates tensors"""
 
+"""@Desc: Concatenates tensors"""
+class ConcatTensorMeter(BaseMeter):
     def __init__(self, dim=0):
         super().__init__()
         self.reset()
@@ -164,14 +191,15 @@ class ConcatTensorMeter(Meter):
     def load_state_dict(self, state_dict):
         self.tensor = state_dict["tensor"]
 
+    #@Return: a dummy value
     @property
     def smoothed_value(self) -> float:
-        return []  # return a dummy value
+        return []
 
 
-class TimeMeter(Meter):
-    """Computes the average occurrence of some event per second"""
 
+"""@Desc: Computes the average occurrence of some event per second"""
+class TimeMeter(BaseMeter):
     def __init__(
         self,
         init: int = 0,
@@ -182,9 +210,12 @@ class TimeMeter(Meter):
         self.reset(init, n)
 
     def reset(self, init=0, n=0):
+        #@Explain: @Var{self.init} is the initial time.
         self.init = init
         self.start = time.perf_counter()
+        #@Explain: @Var{self.n} is the number of occureence of some event.
         self.n = n
+        #@Explain: @Var{self.i} is the number of updation.
         self.i = 0
 
     def update(self, val=1):
@@ -222,9 +253,9 @@ class TimeMeter(Meter):
         return val
 
 
-class StopwatchMeter(Meter):
-    """Computes the sum/avg duration of some event in seconds"""
 
+"""@Desc: Computes the sum/avg duration of some event in seconds"""
+class StopwatchMeter(BaseMeter):
     def __init__(self, round: Optional[int] = None):
         self.round = round
         self.sum = 0
@@ -234,6 +265,8 @@ class StopwatchMeter(Meter):
     def start(self):
         self.start_time = time.perf_counter()
 
+    #@User: 可以不断调用这个函数，同时对多个event进行计时，最终可以计算他们的平均时间/总时间
+    #@Question: What is @Param{prehook}?
     def stop(self, n=1, prehook=None):
         if self.start_time is not None:
             if prehook is not None:
@@ -243,8 +276,10 @@ class StopwatchMeter(Meter):
             self.n = type_as(self.n, n) + n
 
     def reset(self):
-        self.sum = 0  # cumulative time during which stopwatch was active
-        self.n = 0  # total n across all start/stop
+        #@Explain: @Var{self.sum} is the cumulative time during which stopwatch was active
+        self.sum = 0
+        #@Explain: @Var{self.n} is the total n across all start/stop
+        self.n = 0
         self.start()
 
     def state_dict(self):
@@ -260,6 +295,7 @@ class StopwatchMeter(Meter):
         self.start_time = None
         self.round = state_dict.get("round", None)
 
+    #@Return: self.n > 0 to report the average time instead of the sum. It @Depend{@Func{stop}}
     @property
     def avg(self):
         return self.sum / self.n if self.n > 0 else self.sum
@@ -272,34 +308,40 @@ class StopwatchMeter(Meter):
 
     @property
     def smoothed_value(self) -> float:
+        #@Explain: 如果只开始，不停止，@Self.sum无法更新
         val = self.avg if self.sum > 0 else self.elapsed_time
         if self.round is not None and val is not None:
             val = safe_round(val, self.round)
         return val
 
 
+
+"""
+@Desc:  A sorted dictionary of @Class{Meters}.
+        Meters are sorted according to a priority that is given when the
+        meter is first added to the dictionary.
+"""
 class MetersDict(OrderedDict):
-    """A sorted dictionary of :class:`Meters`.
-
-    Meters are sorted according to a priority that is given when the
-    meter is first added to the dictionary.
-    """
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        #@Explain: @Var{self.priorities} is like: [(priority, some integer, key)...], @Depend{@Func{__setitem__}}
         self.priorities = []
 
+    #@Param{value}: @Tuple{(priority, meter instance)}
     def __setitem__(self, key, value):
         assert key not in self, "MetersDict doesn't support reassignment"
         priority, value = value
+        #@Now: @Var{value} is an instance of some Meter.
         bisect.insort(self.priorities, (priority, len(self.priorities), key))
         super().__setitem__(key, value)
-        for _, _, key in self.priorities:  # reorder dict to match priorities
+        #@Explain: reorder dict to match priorities
+        for _, _, key in self.priorities:
             self.move_to_end(key)
 
     def add_meter(self, key, meter, priority):
         self.__setitem__(key, (priority, meter))
 
+    #@Return: @List{[(priority, key, The class name of Meter, this meter's state_dict)...]}
     def state_dict(self):
         return [
             (pri, key, self[key].__class__.__name__, self[key].state_dict())
@@ -311,21 +353,22 @@ class MetersDict(OrderedDict):
     def load_state_dict(self, state_dict):
         self.clear()
         self.priorities.clear()
+        #@Explain: 通过globals()获取确据定义域dict，查找到相应的类，构建一个实例 =>0 加载状态 => 重建dict
         for pri, key, meter_cls, meter_state in state_dict:
             meter = globals()[meter_cls]()
             meter.load_state_dict(meter_state)
             self.add_meter(key, meter, pri)
 
+    #@Desc: Get a single smoothed value.
     def get_smoothed_value(self, key: str) -> float:
-        """Get a single smoothed value."""
         meter = self[key]
         if isinstance(meter, MetersDict._DerivedMeter):
             return meter.fn(self)
         else:
             return meter.smoothed_value
 
+    #@Desc: Get all smoothed values in orderedDict.
     def get_smoothed_values(self) -> Dict[str, float]:
-        """Get all smoothed values."""
         return OrderedDict(
             [
                 (key, self.get_smoothed_value(key))
@@ -334,16 +377,15 @@ class MetersDict(OrderedDict):
             ]
         )
 
+    #@Desc: Reset Meter instances.
     def reset(self):
-        """Reset Meter instances."""
         for meter in self.values():
             if isinstance(meter, MetersDict._DerivedMeter):
                 continue
             meter.reset()
 
-    class _DerivedMeter(Meter):
-        """A Meter whose values are derived from other Meters."""
-
+    #@Desc: A Meter whose values are derived from other Meters.
+    class _DerivedMeter(BaseMeter):
         def __init__(self, fn):
             self.fn = fn
 
